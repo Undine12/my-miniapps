@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>冒泡排序可视化</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, "PingFang SC", sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      color: #fff;
+    }
+    .card {
+      background: rgba(255,255,255,0.12);
+      backdrop-filter: blur(10px);
+      border-radius: 20px;
+      padding: 24px;
+      width: 100%;
+      max-width: 560px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+    }
+    h1 { font-size: 22px; text-align: center; margin-bottom: 6px; }
+    .sub { text-align: center; font-size: 13px; opacity: 0.85; margin-bottom: 20px; }
+    .controls { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+    input {
+      flex: 1; min-width: 160px;
+      padding: 10px 14px; border: none; border-radius: 10px;
+      font-size: 15px; outline: none;
+    }
+    button {
+      padding: 10px 18px; border: none; border-radius: 10px;
+      font-size: 15px; cursor: pointer; font-weight: 600;
+      transition: transform 0.1s, opacity 0.1s;
+    }
+    button:active { transform: scale(0.95); }
+    .btn-start { background: #4ade80; color: #1a2e05; }
+    .btn-reset { background: #fbbf24; color: #3b2f00; }
+    .btn-step { background: #93c5fd; color: #0c2a52; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .bars {
+      display: flex; align-items: flex-end; justify-content: center;
+      height: 220px; gap: 4px; padding: 10px; margin-bottom: 16px;
+      background: rgba(0,0,0,0.15); border-radius: 12px;
+    }
+    .bar {
+      flex: 1; max-width: 40px; background: #60a5fa;
+      border-radius: 4px 4px 0 0; transition: height 0.25s, background 0.15s;
+      display: flex; align-items: flex-end; justify-content: center;
+      font-size: 11px; color: #fff; padding-bottom: 2px;
+    }
+    .bar.compared { background: #f87171; }
+    .bar.sorted { background: #4ade80; }
+    .status { text-align: center; font-size: 14px; min-height: 22px; margin-bottom: 8px; }
+    .array { text-align: center; font-size: 13px; word-break: break-all; opacity: 0.9; }
+    .steps { text-align: center; font-size: 12px; opacity: 0.8; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🫧 冒泡排序可视化</h1>
+    <p class="sub">输入数字（逗号分隔），观察每一轮「冒泡」过程</p>
+
+    <div class="controls">
+      <input id="input" placeholder="例如：6, 3, 8, 2, 9, 1" value="6,3,8,2,9,1">
+      <button class="btn-reset" id="reset">重置</button>
+      <button class="btn-step" id="step">单步</button>
+      <button class="btn-start" id="auto">自动播放</button>
+    </div>
+
+    <div class="bars" id="bars"></div>
+    <div class="status" id="status">点击「自动播放」或「单步」开始</div>
+    <div class="array" id="array"></div>
+    <div class="steps" id="steps"></div>
+  </div>
+
+  <script>
+    let arr = [];
+    let i = 0, j = 0;          // 外层、内层指针
+    let sortedCount = 0;       // 已排好的数量
+    let timer = null;
+    let running = false;
+
+    function init() {
+      const raw = document.getElementById('input').value;
+      arr = raw.split(/[,，\s]+/).map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+      if (arr.length === 0) { arr = [6,3,8,2,9,1]; }
+      i = 0; j = 0; sortedCount = 0;
+      render();
+    }
+
+    function render(ci = -1, cj = -1) {
+      const bars = document.getElementById('bars');
+      bars.innerHTML = '';
+      const max = Math.max(...arr);
+      arr.forEach((v, idx) => {
+        const bar = document.createElement('div');
+        bar.className = 'bar';
+        bar.style.height = (v / max * 100) + '%';
+        bar.textContent = v;
+        if (idx === ci || idx === cj) bar.classList.add('compared');
+        if (idx >= arr.length - sortedCount) bar.classList.add('sorted');
+        bars.appendChild(bar);
+      });
+      document.getElementById('array').textContent = '当前数组：[' + arr.join(', ') + ']';
+    }
+
+    function oneStep() {
+      if (sortedCount >= arr.length - 1) {
+        stop();
+        document.getElementById('status').textContent = '✅ 排序完成！';
+        document.getElementById('steps').textContent = '';
+        render();
+        return false;
+      }
+      if (j >= arr.length - sortedCount - 1) {
+        // 一轮结束，最后一个是这一轮的最大值
+        i++;
+        j = 0;
+        sortedCount++;
+        document.getElementById('steps').textContent = '第 ' + i + ' 轮完成，已排好 ' + sortedCount + ' 个';
+      }
+      if (sortedCount >= arr.length - 1) {
+        stop();
+        document.getElementById('status').textContent = '✅ 排序完成！';
+        document.getElementById('steps').textContent = '';
+        render();
+        return false;
+      }
+      // 比较 arr[j] 和 arr[j+1]
+      if (arr[j] > arr[j + 1]) {
+        [arr[j], arr[j + 1]] = [arr[j + 1], arr[j]];
+        document.getElementById('status').textContent = '交换 ' + arr[j] + ' 和 ' + arr[j + 1];
+      } else {
+        document.getElementById('status').textContent = '比较 ' + arr[j] + ' 和 ' + arr[j + 1] + '（不交换）';
+      }
+      render(j, j + 1);
+      j++;
+      return true;
+    }
+
+    function start() {
+      if (running) return;
+      if (sortedCount >= arr.length - 1) { init(); }
+      running = true;
+      document.getElementById('auto').disabled = true;
+      document.getElementById('reset').disabled = true;
+      document.getElementById('step').disabled = true;
+      timer = setInterval(() => {
+        const ok = oneStep();
+        if (!ok) stop();
+      }, 600);
+    }
+
+    function stop() {
+      running = false;
+      clearInterval(timer);
+      timer = null;
+      document.getElementById('auto').disabled = false;
+      document.getElementById('reset').disabled = false;
+      document.getElementById('step').disabled = false;
+    }
+
+    document.getElementById('reset').onclick = () => { stop(); init(); document.getElementById('status').textContent = '已重置，点击开始'; };
+    document.getElementById('step').onclick = () => {
+      stop();
+      window._started = window._started || init();
+      const ok = oneStep();
+      if (!ok) { init(); }
+    };
+    document.getElementById('auto').onclick = () => {
+      if (sortedCount >= arr.length - 1) init();
+      start();
+    };
+
+    init();
+  </script>
+</body>
+</html>

@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>16 型人格快速测试</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, "PingFang SC", sans-serif;
+      background: linear-gradient(160deg, #1e3a8a 0%, #7c3aed 60%, #db2777 100%);
+      min-height: 100vh; padding: 20px; color: #1f2937;
+      display: flex; justify-content: center; align-items: flex-start;
+    }
+    .wrap { width: 100%; max-width: 560px; }
+    .card {
+      background: #fff; border-radius: 20px; padding: 28px 24px;
+      box-shadow: 0 15px 50px rgba(0,0,0,0.35);
+    }
+    h1 { text-align: center; font-size: 24px; margin-bottom: 4px; color: #1e3a8a; }
+    .sub { text-align: center; font-size: 13px; color: #6b7280; margin-bottom: 20px; }
+    .progressbar { height: 8px; background: #e5e7eb; border-radius: 99px; overflow: hidden; margin-bottom: 20px; }
+    .progressbar .fill { height: 100%; background: linear-gradient(90deg,#7c3aed,#db2777); border-radius: 99px; transition: width 0.3s; }
+    .q-title { font-size: 13px; color: #7c3aed; font-weight: 600; margin-bottom: 10px; letter-spacing: 1px; }
+    .q-text { font-size: 19px; font-weight: 600; margin-bottom: 18px; line-height: 1.5; }
+    .opt {
+      display: block; width: 100%; text-align: left;
+      padding: 14px 16px; margin-bottom: 10px;
+      border: 2px solid #e5e7eb; border-radius: 12px; background: #fafafa;
+      font-size: 15px; cursor: pointer; transition: all 0.15s; color: #1f2937;
+    }
+    .opt:hover { border-color: #a78bfa; background: #f5f3ff; }
+    .opt:active { transform: scale(0.98); }
+    .btn-next {
+      width: 100%; padding: 14px; border: none; border-radius: 12px;
+      background: linear-gradient(90deg,#7c3aed,#db2777); color: #fff;
+      font-size: 16px; font-weight: 700; cursor: pointer; margin-top: 8px;
+    }
+    .btn-next:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-back { text-align: center; font-size: 13px; color: #6b7280; margin-top: 12px; cursor: pointer; }
+
+    /* 结果页 */
+    .result { text-align: center; }
+    .type-big { font-size: 56px; font-weight: 800; color: #7c3aed; letter-spacing: 2px; margin: 8px 0; }
+    .type-name { font-size: 18px; font-weight: 600; color: #1f2937; margin-bottom: 4px; }
+    .type-desc { font-size: 14px; color: #6b7280; margin-bottom: 20px; line-height: 1.6; }
+    .score-row { display: flex; justify-content: space-around; margin-bottom: 20px; }
+    .score-item { text-align: center; }
+    .score-item .dim { font-size: 13px; color: #6b7280; }
+    .score-item .letters { font-size: 16px; font-weight: 700; color: #7c3aed; margin-top: 2px; }
+    .scorebar { width: 130px; height: 8px; background: #e5e7eb; border-radius: 99px; margin: 6px auto 0; overflow: hidden; }
+    .scorebar .f { height: 100%; background: #7c3aed; border-radius: 99px; }
+    .traits { text-align: left; font-size: 14px; line-height: 1.8; color: #374151; margin-bottom: 20px; }
+    .traits li { list-style: none; padding-left: 20px; position: relative; }
+    .traits li::before { content: '✦'; position: absolute; left: 0; color: #db2777; }
+    .btn-restart { width: 100%; padding: 13px; border: 2px solid #7c3aed; border-radius: 12px; background: #fff; color: #7c3aed; font-size: 15px; font-weight: 700; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card" id="card"></div>
+  </div>
+
+  <script>
+    // 四个维度，每个维度 4 题
+    const QUESTIONS = [
+      // E/I
+      { dim: 'EI', text: '在聚会或多人场合，你通常：', a: '主动认识新朋友，越聊越有精神', b: '先观察，和熟人待在一起更自在' },
+      { dim: 'EI', text: '忙碌一周后，你最想：', a: '约朋友出去玩、聚一聚', b: '一个人安静待着，给自己充电' },
+      { dim: 'EI', text: '遇到问题时，你倾向于：', a: '立刻找人讨论、说出来理清思路', b: '先自己独立思考想清楚' },
+      { dim: 'EI', text: '你更符合哪种描述？', a: '想到什么就表达，话比较多', b: '想清楚才说，更爱倾听' },
+
+      // S/N
+      { dim: 'SN', text: '学习新东西时，你更看重：', a: '具体的步骤、事实和实用方法', b: '背后的原理、概念和可能性' },
+      { dim: 'SN', text: '你更喜欢哪种信息？', a: '明确、具体、可落地的', b: '抽象、有想象空间的' },
+      { dim: 'SN', text: '做决定时，你更多依靠：', a: '过去的经验和眼前的现实', b: '直觉和对未来的预判' },
+      { dim: 'SN', text: '你更符合哪种描述？', a: '关注眼前、脚踏实地', b: '爱联想、常有新点子' },
+
+      // T/F
+      { dim: 'TF', text: '朋友遇到挫折向你倾诉，你第一反应是：', a: '帮 Ta 分析问题、想办法解决', b: '先安慰情绪、表达理解' },
+      { dim: 'TF', text: '评价一件事时，你更看重：', a: '客观、是否合理、对错', b: '感受、是否顾及别人的心情' },
+      { dim: 'TF', text: '发生分歧时，你倾向于：', a: '摆事实讲道理，就事论事', b: '先照顾关系，避免伤和气' },
+      { dim: 'TF', text: '你更符合哪种描述？', a: '理智、直接、对事不对人', b: '感性、体贴、重视和谐' },
+
+      // J/P
+      { dim: 'JP', text: '对待计划，你通常：', a: '喜欢提前安排好，按计划执行', b: '保持灵活，走一步看一步' },
+      { dim: 'JP', text: '面对 Deadline，你更可能：', a: '提前开始，有条不紊', b: '最后冲刺，靠爆发力完成' },
+      { dim: 'JP', text: '你的桌面/房间通常是：', a: '整洁有序，东西归位', b: '有点乱，但自己知道在哪' },
+      { dim: 'JP', text: '你更符合哪种描述？', a: '喜欢确定、有掌控感', b: '喜欢开放、随遇而安' },
+    ];
+
+    const TYPES = {
+      INTJ: { name: '建筑师', desc: '理性、独立、富有战略眼光，追求效率和完美。', traits: ['有计划、有远见', '喜欢深入思考', '高标准、自我驱动', '偶尔显得高冷'] },
+      INTP: { name: '逻辑学家', desc: '好奇心强、善于分析，喜欢探究事物背后的原理。', traits: ['爱思考、爱钻研', '逻辑清晰', '喜欢独处思考', '创意丰富'] },
+      ENTJ: { name: '指挥官', desc: '果断、有领导力，天生的组织者和决策者。', traits: ['目标导向', '有魄力、敢担当', '善于组织资源', '追求结果'] },
+      ENTP: { name: '辩论家', desc: '机智、思维活跃，喜欢挑战常规、探索新想法。', traits: ['反应快、点子多', '喜欢辩论', '好奇心强', '不拘一格'] },
+      INFJ: { name: '提倡者', desc: '理想主义、有洞察力，关心他人也追求意义。', traits: ['有同理心', '有原则有信念', '洞察力强', '追求深度关系'] },
+      INFP: { name: '调停者', desc: '温柔、富有想象力，忠于内心的价值观。', traits: ['善良、真诚', '富有创造力', '重视意义', '内心敏感'] },
+      ENFJ: { name: '主人公', desc: '热情、有感染力，天生的感召者和鼓励者。', traits: ['擅长沟通', '关心他人', '有感染力', '责任感强'] },
+      ENFP: { name: '竞选者', desc: '热情、自由、充满活力，总能带来正能量。', traits: ['热情洋溢', '想象力丰富', '喜欢新鲜感', '擅长带动气氛'] },
+      ISTJ: { name: '物流师', desc: '务实、可靠、条理分明，值得信赖的执行者。', traits: ['踏实可靠', '认真负责', '有条理', '注重规则'] },
+      ISFJ: { name: '守卫者', desc: '温暖、细心、乐于助人，默默守护身边的人。', traits: ['体贴周到', '有责任心', '踏实稳定', '顾全他人'] },
+      ESTJ: { name: '总经理', desc: '讲求实际、有条理，天生的组织和管理者。', traits: ['果断高效', '重视规则', '执行力强', '可靠稳重'] },
+      ESFJ: { name: '执政官', desc: '热情、友善、合群，善于营造和谐的氛围。', traits: ['热心肠', '善解人意', '注重和谐', '责任心强'] },
+      ISTP: { name: '鉴赏家', desc: '冷静、务实、动手能力强，喜欢用行动解决问题。', traits: ['沉着冷静', '动手能力强', '喜欢实践', '灵活变通'] },
+      ISFP: { name: '探险家', desc: '温和、随性、有艺术气质，享受当下的美好。', traits: ['温和友善', '有审美', '随性自在', '重感情'] },
+      ESTP: { name: '企业家', desc: '精力充沛、行动力强，喜欢冒险和即时反应。', traits: ['行动派', '反应敏捷', '敢于冒险', '善于应变'] },
+      ESFP: { name: '表演者', desc: '活泼、热情、爱玩，是人群中的开心果。', traits: ['开朗活泼', '感染力强', '活在当下', '喜欢热闹'] },
+    };
+
+    let idx = 0;
+    let scores = { EI: 0, SN: 0, TF: 0, JP: 0 }; // >0 偏向 a 的字母（E/S/T/J），<0 偏 b
+    let answers = [];
+
+    const card = document.getElementById('card');
+
+    function renderQuestion() {
+      const q = QUESTIONS[idx];
+      const pct = (idx / QUESTIONS.length * 100).toFixed(0);
+      card.innerHTML = `
+        <h1>🧭 人格快速测试</h1>
+        <p class="sub">凭第一直觉选择，没有对错</p>
+        <div class="progressbar"><div class="fill" style="width:${pct}%"></div></div>
+        <div class="q-title">第 ${idx + 1} / ${QUESTIONS.length} 题</div>
+        <div class="q-text">${q.text}</div>
+        <button class="opt" data-val="a">${q.a}</button>
+        <button class="opt" data-val="b">${q.b}</button>
+        <button class="btn-next" disabled>下一题 →</button>
+        ${idx > 0 ? '<div class="btn-back">← 上一题</div>' : ''}
+      `;
+
+      let selected = null;
+      const opts = card.querySelectorAll('.opt');
+      const nextBtn = card.querySelector('.btn-next');
+
+      opts.forEach(btn => btn.onclick = () => {
+        opts.forEach(b => { b.style.borderColor = '#e5e7eb'; b.style.background = '#fafafa'; });
+        btn.style.borderColor = '#7c3aed'; btn.style.background = '#f5f3ff';
+        selected = btn.dataset.val;
+        nextBtn.disabled = false;
+      });
+
+      nextBtn.onclick = () => {
+        answers[idx] = selected;
+        if (selected === 'a') scores[q.dim]++; else scores[q.dim]--;
+        idx++;
+        if (idx >= QUESTIONS.length) renderResult();
+        else renderQuestion();
+      };
+
+      const back = card.querySelector('.btn-back');
+      if (back) back.onclick = () => { idx--; renderQuestion(); };
+    }
+
+    function renderResult() {
+      const type =
+        (scores.EI >= 0 ? 'E' : 'I') +
+        (scores.SN >= 0 ? 'S' : 'N') +
+        (scores.TF >= 0 ? 'T' : 'F') +
+        (scores.JP >= 0 ? 'J' : 'P');
+      const info = TYPES[type];
+
+      const dimRow = (dim, leftL, rightL) => {
+        const s = scores[dim];
+        const pctL = Math.max(5, Math.min(95, 50 + s * 6)); // 每个 +1 偏 6%
+        return `<div class="score-item">
+          <div class="dim">${dim}</div>
+          <div class="letters">${leftL} · ${rightL}</div>
+          <div class="scorebar"><div class="f" style="width:${pctL}%"></div></div>
+        </div>`;
+      };
+
+      card.innerHTML = `
+        <div class="result">
+          <h1>🧭 测试完成</h1>
+          <div class="type-big">${type}</div>
+          <div class="type-name">${info.name}</div>
+          <div class="type-desc">${info.desc}</div>
+          <div class="score-row">
+            ${dimRow('EI', 'E 外向', 'I 内向')}
+            ${dimRow('SN', 'S 实感', 'N 直觉')}
+          </div>
+          <div class="score-row">
+            ${dimRow('TF', 'T 理性', 'F 感性')}
+            ${dimRow('JP', 'J 计划', 'P 随性')}
+          </div>
+          <ul class="traits">
+            ${info.traits.map(t => `<li>${t}</li>`).join('')}
+          </ul>
+          <button class="btn-restart">重新测试</button>
+        </div>
+      `;
+      card.querySelector('.btn-restart').onclick = () => { idx = 0; scores = { EI: 0, SN: 0, TF: 0, JP: 0 }; answers = []; renderQuestion(); };
+    }
+
+    renderQuestion();
+  </script>
+</body>
+</html>
