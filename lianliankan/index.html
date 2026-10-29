@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>可爱连连看</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body {
+      font-family: -apple-system, "PingFang SC", sans-serif;
+      background: linear-gradient(160deg, #fbc2eb 0%, #a6c1ee 100%);
+      min-height: 100vh; display: flex; justify-content: center; align-items: center;
+      padding: 16px; user-select: none; -webkit-user-select: none;
+    }
+    .wrap { width: 100%; max-width: 460px; }
+    .card {
+      background: rgba(255,255,255,0.85); border-radius: 24px; padding: 22px 18px;
+      box-shadow: 0 12px 40px rgba(150,100,180,0.3); text-align: center;
+    }
+    h1 { font-size: 24px; color: #7c4d8b; margin-bottom: 4px; }
+    .sub { font-size: 13px; color: #9a7ba6; margin-bottom: 14px; }
+    .hud { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; padding: 0 4px; }
+    .info { display: flex; gap: 14px; font-size: 13px; color: #7c4d8b; }
+    .info b { font-size: 16px; color: #e066a6; }
+    button {
+      padding: 9px 18px; border: none; border-radius: 999px; cursor: pointer;
+      font-size: 14px; font-weight: 700; color: #fff;
+      background: linear-gradient(135deg, #f78fb3, #e066a6);
+      transition: transform 0.1s;
+    }
+    button:active { transform: scale(0.94); }
+    .board {
+      display: grid; gap: 6px; justify-content: center;
+      padding: 10px; background: rgba(255,255,255,0.5); border-radius: 16px;
+    }
+    .cell {
+      width: 56px; height: 56px; border-radius: 14px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 30px; background: #fff; box-shadow: 0 3px 8px rgba(0,0,0,0.08);
+      transition: transform 0.12s, background 0.12s, box-shadow 0.12s;
+    }
+    .cell:active { transform: scale(0.9); }
+    .cell.empty { background: transparent; box-shadow: none; cursor: default; }
+    .cell.selected {
+      background: #ffe3f0; box-shadow: 0 0 0 3px #f78fb3 inset;
+      transform: scale(1.06);
+    }
+    .msg { font-size: 15px; color: #7c4d8b; margin-top: 14px; min-height: 22px; font-weight: 600; }
+    .overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+      display: flex; align-items: center; justify-content: center; z-index: 10;
+    }
+    .dialog {
+      background: #fff; border-radius: 24px; padding: 32px 28px; text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-width: 320px;
+    }
+    .dialog .big { font-size: 56px; }
+    .dialog h2 { font-size: 22px; color: #7c4d8b; margin: 8px 0 6px; }
+    .dialog p { font-size: 14px; color: #9a7ba6; margin-bottom: 20px; }
+    .dialog button { padding: 11px 28px; font-size: 15px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>🍬 可爱连连看</h1>
+      <p class="sub">找到两个相同的图案，用最多两个拐角连起来消除</p>
+      <div class="hud">
+        <div class="info">
+          <span>剩余 <b id="remain">0</b></span>
+          <span>用时 <b id="time">0</b>s</span>
+        </div>
+        <button id="shuffle">🔀 洗牌</button>
+      </div>
+      <div class="board" id="board"></div>
+      <div class="msg" id="msg"></div>
+    </div>
+  </div>
+
+  <script>
+    const EMOJIS = ['🐱','🐶','🐰','🐻','🐼','🐨','🦊','🐸','🐵','🐷','🦉','🐧','🍎','🍓','🍉','🍩','🍰','⭐','🌈','🎀','🌸','🍭'];
+    const ROWS = 8, COLS = 8; // 64 格 = 32 对
+    const CELL_COUNT = ROWS * COLS;
+
+    let grid = [];       // 存 emoji 或 null
+    let selected = null; // 选中的格子索引
+    let startTime = null;
+    let timerId = null;
+
+    const board = document.getElementById('board');
+    const msgEl = document.getElementById('msg');
+    const remainEl = document.getElementById('remain');
+    const timeEl = document.getElementById('time');
+
+    function buildBoard() {
+      board.style.gridTemplateColumns = `repeat(${COLS}, 56px)`;
+      board.innerHTML = '';
+      board._cells = [];
+      for (let i = 0; i < CELL_COUNT; i++) {
+        const d = document.createElement('div');
+        d.className = 'cell';
+        d.dataset.i = i;
+        d.onclick = () => onClick(i);
+        board.appendChild(d);
+        board._cells.push(d);
+      }
+    }
+
+    function init() {
+      stopTimer();
+      // 生成成对 emoji
+      let pool = [];
+      const pairs = CELL_COUNT / 2;
+      const chosen = shuffle([...EMOJIS]).slice(0, pairs);
+      chosen.forEach(e => pool.push(e, e));
+      grid = shuffle(pool);
+      selected = null;
+      startTime = null;
+      msgEl.textContent = '游戏开始～找到相同图案配对消除吧！';
+      render();
+      updateHud();
+      startTimer();
+    }
+
+    function shuffle(a) {
+      const arr = [...a];
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    function render() {
+      board._cells.forEach((d, i) => {
+        const v = grid[i];
+        if (v == null) { d.className = 'cell empty'; d.textContent = ''; }
+        else { d.textContent = v; d.className = 'cell'; }
+        if (i === selected) d.classList.add('selected');
+      });
+    }
+
+    function updateHud() {
+      remainEl.textContent = grid.filter(x => x != null).length;
+    }
+
+    function startTimer() {
+      startTime = Date.now();
+      timerId = setInterval(() => {
+        timeEl.textContent = Math.floor((Date.now() - startTime) / 1000);
+      }, 1000);
+    }
+    function stopTimer() { if (timerId) clearInterval(timerId); timerId = null; }
+
+    function onClick(i) {
+      if (grid[i] == null) return;
+      if (selected === null) { selected = i; render(); return; }
+      if (selected === i) { selected = null; render(); return; }
+
+      // 已选一个，现在点第二个
+      const a = selected, b = i;
+      if (grid[a] === grid[b] && canConnect(a, b)) {
+        // 消除
+        grid[a] = null; grid[b] = null;
+        selected = null;
+        msgEl.textContent = '✨ 消除成功！';
+        render(); updateHud();
+        if (grid.every(x => x == null)) win();
+      } else {
+        msgEl.textContent = grid[a] === grid[b] ? '😅 这两个连不起来哦' : '❌ 图案不一样～';
+        selected = null;
+        render();
+      }
+    }
+
+    function pos(i) { return [Math.floor(i / COLS), i % COLS]; }
+
+    // 判断两个点能否用 <=2 个拐角相连
+    function canConnect(a, b) {
+      const [r1, c1] = pos(a), [r2, c2] = pos(b);
+
+      // 0 拐角：同行或同列直线
+      if (straightClear(r1, c1, r2, c2)) return true;
+
+      // 1 拐角：两个拐点 (r1,c2) 和 (r2,c1)
+      if (isEmptyOr(a, r1, c2) && straightClear(r1, c1, r1, c2) && straightClear(r1, c2, r2, c2)) return true;
+      if (isEmptyOr(a, r2, c1) && straightClear(r1, c1, r2, c1) && straightClear(r2, c1, r2, c2)) return true;
+
+      // 2 拐角：延某方向走，再走另一方向
+      return twoCorner(a, b);
+    }
+
+    function isEmptyOr(ignore, r, c) {
+      if (r < 0 || r >= ROWS || c < 0 || c >= COLS) return true; // 边界外视为可通行
+      const idx = r * COLS + c;
+      return grid[idx] == null || idx === ignore;
+    }
+    function clearCheck(ignore, r, c) {
+      if (r < 0 || r >= ROWS || c < 0 || c >= COLS) return true;
+      const idx = r * COLS + c;
+      return grid[idx] == null || idx === ignore;
+    }
+
+    function straightClear(r1, c1, r2, c2) {
+      if (r1 === r2) {
+        const [lo, hi] = c1 < c2 ? [c1, c2] : [c2, c1];
+        for (let c = lo + 1; c < hi; c++) {
+          if (!clearCheck(-1, r1, c)) return false;
+        }
+        return true;
+      }
+      if (c1 === c2) {
+        const [lo, hi] = r1 < r2 ? [r1, r2] : [r2, r1];
+        for (let r = lo + 1; r < hi; r++) {
+          if (!clearCheck(-1, r, c1)) return false;
+        }
+        return true;
+      }
+      return false;
+    }
+
+    function twoCorner(a, b) {
+      const [r1, c1] = pos(a), [r2, c2] = pos(b);
+      // 从 a 竖直走，在某行 r 拐，再水平走到 b
+      for (let r = 0; r < ROWS; r++) {
+        if (r === r1 && r === r2) continue;
+        const ok = clearCheck(a, r, c1) && straightClear(r1, c1, r, c1) && straightClear(r, c1, r, c2) && clearCheck(b, r, c2) && straightClear(r, c2, r2, c2);
+        if (ok) return true;
+      }
+      // 从 a 水平走，在某列 c 拐，再竖直走到 b
+      for (let c = 0; c < COLS; c++) {
+        if (c === c1 && c === c2) continue;
+        const ok = clearCheck(a, r1, c) && straightClear(r1, c1, r1, c) && straightClear(r1, c, r2, c) && clearCheck(b, r2, c) && straightClear(r2, c, r2, c2);
+        if (ok) return true;
+      }
+      return false;
+    }
+
+    function win() {
+      stopTimer();
+      const t = Math.floor((Date.now() - startTime) / 1000);
+      showDialog('🎉', '太棒啦！', `你用了 ${t} 秒清空了所有图案！`);
+    }
+
+    function showDialog(emoji, title, text) {
+      const ov = document.createElement('div');
+      ov.className = 'overlay';
+      ov.innerHTML = `<div class="dialog">
+        <div class="big">${emoji}</div>
+        <h2>${title}</h2>
+        <p>${text}</p>
+        <button id="again">再来一局</button>
+      </div>`;
+      document.body.appendChild(ov);
+      ov.querySelector('#again').onclick = () => { ov.remove(); init(); };
+    }
+
+    document.getElementById('shuffle').onclick = () => {
+      const alive = grid.filter(x => x != null);
+      const order = shuffle(alive);
+      let k = 0;
+      grid = grid.map(x => x == null ? null : order[k++]);
+      msgEl.textContent = '🔀 已洗牌～';
+      selected = null;
+      render();
+    };
+
+    buildBoard();
+    init();
+  </script>
+</body>
+</html>
